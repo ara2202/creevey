@@ -1,7 +1,8 @@
 import * as Events from '@storybook/core-events';
+import { ClientApi } from '@storybook/client-api';
 import * as polyfill from 'event-source-polyfill';
 import { addons, MakeDecoratorResult, makeDecorator, Channel } from '@storybook/addons';
-import { isObject, noop, StorybookGlobals } from '../../types';
+import { isObject, noop, SetStoriesData, StorybookGlobals } from '../../types';
 
 if (typeof process != 'object' || typeof process.version != 'string') {
   // NOTE If you don't use babel-polyfill or any other polyfills that add EventSource for IE11
@@ -15,6 +16,7 @@ if (typeof process != 'object' || typeof process.version != 'string') {
 
 declare global {
   interface Window {
+    __CREEVEY_GET_STORIES__: () => Promise<SetStoriesData | void>;
     __CREEVEY_SELECT_STORY__: (
       storyId: string,
       kind: string,
@@ -27,6 +29,7 @@ declare global {
     __CREEVEY_REMOVE_IGNORE_STYLES__: (ignoreStyles: HTMLStyleElement) => void;
     __CREEVEY_SET_READY_FOR_CAPTURE__?: () => void;
     __STORYBOOK_ADDONS_CHANNEL__: Channel;
+    __STORYBOOK_CLIENT_API__: ClientApi;
   }
 }
 
@@ -117,6 +120,14 @@ export function withCreevey(): MakeDecoratorResult {
     document.head.appendChild(style);
   }
 
+  function getStories(): Promise<SetStoriesData | void> {
+    const store = window.__STORYBOOK_CLIENT_API__?.store() ?? null;
+    if (!store) return Promise.resolve();
+    const promise = new Promise<SetStoriesData>((resolve) => addons.getChannel().once(Events.SET_STORIES, resolve));
+    store.pushToManager();
+    return promise;
+  }
+
   async function selectStory(
     storyId: string,
     kind: string,
@@ -194,6 +205,7 @@ export function withCreevey(): MakeDecoratorResult {
     ignoreStyles.parentNode?.removeChild(ignoreStyles);
   }
 
+  window.__CREEVEY_GET_STORIES__ = getStories;
   window.__CREEVEY_SELECT_STORY__ = selectStory;
   window.__CREEVEY_UPDATE_GLOBALS__ = updateGlobals;
   window.__CREEVEY_INSERT_IGNORE_STYLES__ = insertIgnoreStyles;

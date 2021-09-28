@@ -5,7 +5,16 @@ import { getLogger } from 'loglevel';
 import prefix from 'loglevel-plugin-prefix';
 import { Context, Test, Suite } from 'mocha';
 import { Builder, By, WebDriver, Origin, Capabilities, WebElement } from 'selenium-webdriver';
-import { Config, BrowserConfig, StoryInput, CreeveyStoryParams, noop, isDefined, StorybookGlobals } from '../../types';
+import {
+  Config,
+  BrowserConfig,
+  SetStoriesData,
+  StoryInput,
+  CreeveyStoryParams,
+  noop,
+  isDefined,
+  StorybookGlobals,
+} from '../../types';
 import { subscribeOn } from '../messages';
 import { networkInterfaces } from 'os';
 import { runSequence, LOCALHOST_REGEXP, isShuttingDown } from '../utils';
@@ -32,6 +41,8 @@ declare global {
 
 const DOCKER_INTERNAL = 'host.docker.internal';
 let browserLogger = logger;
+let browserName = '';
+let browser: WebDriver | null = null;
 
 function getSessionData(grid: string, sessionId = ''): Promise<Record<string, unknown>> {
   const gridUrl = new URL(grid);
@@ -463,7 +474,24 @@ async function openStorybookPage(
   }
 }
 
-export async function getBrowser(config: Config, browserConfig: BrowserConfig): Promise<WebDriver | null> {
+export async function loadStoriesFromBrowser(
+  { watch }: { watch: boolean },
+  storiesListener: (stories: { [browser: string]: Map<string, StoryInput[]> }) => void,
+): Promise<{ [browser: string]: SetStoriesData }> {
+  if (!browser) throw new Error("Can't get stories from browser if webdriver isn't connected");
+
+  if (watch) {
+    // TODO Watch is like long pooling call
+    // TODO Use executeAsync selenium call
+    // TODO Wait for event or timeout
+    // TODO Reinit one more time
+  }
+  const stories = await browser.executeAsyncScript(function (callback) {});
+}
+
+export async function getBrowser(config: Config, name: string): Promise<WebDriver | null> {
+  browserName = name;
+  const browserConfig = config.browsers[browserName] as BrowserConfig;
   const {
     gridUrl = config.gridUrl,
     storybookUrl: address = config.storybookUrl,
@@ -473,9 +501,7 @@ export async function getBrowser(config: Config, browserConfig: BrowserConfig): 
     ...userCapabilities
   } = browserConfig;
   void limit;
-  const { browserName } = userCapabilities;
   const realAddress = address;
-  let browser: WebDriver | null = null;
 
   // TODO Define some capabilities explicitly and define typings
   const capabilities = new Capabilities(userCapabilities);
@@ -493,7 +519,7 @@ export async function getBrowser(config: Config, browserConfig: BrowserConfig): 
     const url = new URL(gridUrl);
     url.username = url.username ? '********' : '';
     url.password = url.password ? '********' : '';
-    browserLogger.debug(`(${browserName}) Connecting to Selenium ${chalk.magenta(url.toString())}`);
+    browserLogger.debug(`(${name}) Connecting to Selenium ${chalk.magenta(url.toString())}`);
 
     browser = await new Builder().usingServer(gridUrl).withCapabilities(capabilities).build();
 
@@ -508,7 +534,7 @@ export async function getBrowser(config: Config, browserConfig: BrowserConfig): 
     }
 
     browserLogger.debug(
-      `(${browserName}) Connected successful with ${[chalk.green(browserHost), chalk.magenta(sessionId)]
+      `(${name}) Connected successful with ${[chalk.green(browserHost), chalk.magenta(sessionId)]
         .filter(Boolean)
         .join(':')}`,
     );
@@ -518,7 +544,7 @@ export async function getBrowser(config: Config, browserConfig: BrowserConfig): 
     prefix.apply(browserLogger, {
       format(level) {
         const levelColor = colors[level.toUpperCase()];
-        return `[${browserName}:${chalk.gray(sessionId)}] ${levelColor(level)} =>`;
+        return `[${name}:${chalk.gray(sessionId)}] ${levelColor(level)} =>`;
       },
     });
 

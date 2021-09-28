@@ -77,8 +77,6 @@ export default async function (config: Config, options: Options, resolveApi: (ap
 
   runner = await master(config, { watch: options.ui, debug: options.debug });
 
-  await runner.init();
-
   if (options.saveReport) {
     await copyStatics(config.reportDir);
     runner.on('stop', () =>

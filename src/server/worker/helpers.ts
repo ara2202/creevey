@@ -44,15 +44,7 @@ export async function addTestsFromStories(
   const mochaTestsById = new Map<string, Test>();
   const tests = await loadTestsFromStories(
     [browser],
-    (listener) =>
-      config.storiesProvider(
-        config,
-        {
-          watch,
-          debug,
-        },
-        listener,
-      ),
+    (listener) => config.storiesProvider(config, { watch, debug }, listener),
     (testsDiff) =>
       Object.entries(testsDiff).forEach(([id, newTest]) => {
         const oldTest = mochaTestsById.get(id);

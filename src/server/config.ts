@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { isCSFv3Enabled, isStorybookVersionLessThan, storybookDirRef } from './storybook/helpers';
-import { loadStories as nodejsStoriesProvider } from './storybook/nodejs-provider';
-// import { loadStories as browserStoriesProvider } from './storybook/browser-provider';
+import { loadStories as nodejsStoriesProvider } from './storybook/providers/nodejs';
+import { loadStories as browserStoriesProvider } from './storybook/providers/browser';
 import { Config, Browser, BrowserConfig, Options, isDefined } from '../types';
 
 export const defaultBrowser = 'chrome';
@@ -57,7 +57,7 @@ export async function readConfig(options: Options): Promise<Config> {
 
   if (isStorybookVersionLessThan(6, 2)) userConfig.useWebpackToExtractTests = true;
   if (!userConfig.storiesProvider)
-    userConfig.storiesProvider = (await isCSFv3Enabled()) ? nodejsStoriesProvider : nodejsStoriesProvider;
+    userConfig.storiesProvider = (await isCSFv3Enabled()) ? browserStoriesProvider : nodejsStoriesProvider;
 
   if (options.failFast != undefined) userConfig.failFast = Boolean(options.failFast);
   if (options.reportDir) userConfig.reportDir = path.resolve(options.reportDir);

@@ -32,6 +32,8 @@ export default async function master(config: Config, options: { watch: boolean; 
     // Ignore error
   }
 
+  await runner.init();
+
   const tests = await loadTestsFromStories(
     Object.keys(config.browsers),
     (listener) => config.storiesProvider(config, options, listener),

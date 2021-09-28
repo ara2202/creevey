@@ -1,10 +1,10 @@
 import path from 'path';
 import { isWorker, isMaster } from 'cluster';
 import chokidar, { FSWatcher } from 'chokidar';
-import type { StoryInput, WebpackMessage, SetStoriesData, Config } from '../../types';
-import { noop } from '../../types';
-import { getCreeveyCache } from '../utils';
-import { subscribeOn } from '../messages';
+import type { StoryInput, WebpackMessage, SetStoriesData, Config } from '../../../types';
+import { noop } from '../../../types';
+import { getCreeveyCache } from '../../utils';
+import { subscribeOn } from '../../messages';
 import type { Parameters } from '@storybook/api';
 import type { default as Channel } from '@storybook/channels';
 import {
@@ -13,11 +13,11 @@ import {
   importStorybookCoreCommon,
   importStorybookCoreEvents,
   isStorybookVersionLessThan,
-} from './helpers';
-import { logger } from '../logger';
-import { flatStories } from '../stories';
+} from '../helpers';
+import { logger } from '../../logger';
+import { flatStories } from '../../stories';
 
-async function initStorybookEnvironment(): Promise<typeof import('./entry')> {
+async function initStorybookEnvironment(): Promise<typeof import('../entry')> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   (await import('jsdom-global')).default(undefined, { url: 'http://localhost' });
 
@@ -38,7 +38,7 @@ async function initStorybookEnvironment(): Promise<typeof import('./entry')> {
   // NOTE: disable logger for 5.x storybook
   (logger.debug as unknown) = noop;
 
-  return import('./entry');
+  return import('../entry');
 }
 
 function watchStories(channel: Channel, watcher: FSWatcher, initialFiles: Set<string>): (data: SetStoriesData) => void {
@@ -97,8 +97,8 @@ async function loadStoriesDirectly(
   { watcher, debug }: { watcher: FSWatcher | null; debug: boolean },
 ): Promise<void> {
   const { toRequireContext } = await importStorybookCoreCommon();
-  const { addParameters, configure } = await import('./entry');
-  const requireContext = await (await import('../loaders/babel/register')).default(config, debug);
+  const { addParameters, configure } = await import('../entry');
+  const requireContext = await (await import('../../loaders/babel/register')).default(config, debug);
   const preview = (() => {
     try {
       return require.resolve(`${config.storybookDir}/preview`);
@@ -168,29 +168,33 @@ async function loadStoriesDirectly(
   void startStorybook();
 }
 
+// TODO Do we need to support multiple storybooks here?
 export async function loadStories(
   config: Config,
   { watch, debug }: { watch: boolean; debug: boolean },
-  storiesListener: (stories: Map<string, StoryInput[]>) => void,
-): Promise<SetStoriesData> {
+  storiesListener: (stories: { [browser: string]: Map<string, StoryInput[]> }) => void,
+): Promise<{ [browser: string]: SetStoriesData }> {
+  const browsers = Object.keys(config.browsers);
   const storybookApi = await initStorybookEnvironment();
   const Events = await importStorybookCoreEvents();
 
   const { channel } = storybookApi;
   channel.removeAllListeners(Events.CURRENT_STORY_WAS_SET);
-  channel.on('storiesUpdated', storiesListener);
+  channel.on('storiesUpdated', (stories: Map<string, StoryInput[]>) =>
+    storiesListener(browsers.reduce((update, browser) => ({ ...update, [browser]: stories }), {})),
+  );
 
   let watcher: FSWatcher | null = null;
   if (watch) watcher = chokidar.watch([], { ignoreInitial: true });
 
-  const loadPromise = new Promise<SetStoriesData>((resolve) => {
+  const loadPromise = new Promise<{ [browser: string]: SetStoriesData }>((resolve) => {
     channel.once(Events.SET_STORIES, (data: SetStoriesData) => {
       const stories = isStorybookVersionLessThan(6) ? data.stories : flatStories(data);
       const files = new Set(Object.values(stories).map((story) => story.parameters.fileName));
 
       if (watcher) channel.on(Events.SET_STORIES, watchStories(channel, watcher, files));
 
-      resolve(data);
+      resolve(browsers.reduce((storiesData, browser) => ({ ...storiesData, [browser]: data }), {}));
     });
   });
 

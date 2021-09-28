@@ -215,18 +215,13 @@ export interface Config {
    * module.exports = {
    *   storiesProvider: provider
    * }
+   * ```
    */
   storiesProvider: (
     config: Config,
-    {
-      watch,
-      debug,
-    }: {
-      watch: boolean;
-      debug: boolean;
-    },
-    storiesListener: (stories: Map<string, StoryInput[]>) => void,
-  ) => Promise<SetStoriesData>;
+    options: { watch: boolean; debug: boolean },
+    storiesListener: (stories: { [browser: string]: Map<string, StoryInput[]> }) => void,
+  ) => Promise<{ [browser: string]: SetStoriesData }>;
   /**
    * Define custom babel options for load stories transformation
    */
